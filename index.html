@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clasificador de productos</title>
+<meta name="theme-color" content="#2563eb">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+  :root{--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mut:#667085;--ac:#2563eb;--ok:#16a34a;--warn:#d97706;--bd:#e4e7ec}
+  @media (prefers-color-scheme:dark){:root{--bg:#0f1216;--card:#181c22;--tx:#eef1f5;--mut:#98a2b3;--bd:#2a3039;--ac:#3b82f6}}
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--tx)}
+  main{max-width:560px;margin:0 auto;padding:12px;padding-top:max(12px,env(safe-area-inset-top));padding-bottom:max(12px,env(safe-area-inset-bottom))}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  h1{font-size:1.25rem;margin:6px 0 2px}
+  h2{font-size:1rem;margin:0 0 8px}
+  .mut{color:var(--mut);font-size:.85rem}
+  .grid{display:grid;grid-template-columns:1fr;column-gap:12px}
+  @media (min-width:900px){main{max-width:1000px}.grid{grid-template-columns:1fr 1fr;align-items:start}}
+  .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px;margin-top:12px}
+  .cam{position:relative;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:4/3}
+  .cam video,.cam img{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .cam video{object-fit:cover}
+  .cam img{object-fit:contain;background:#000}
+  .cam .bt{position:absolute;bottom:8px}
+  .cam .der{right:8px}.cam .izq{left:8px}
+  button,.btn{font:inherit;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;padding:9px 12px;cursor:pointer;touch-action:manipulation;display:inline-block}
+  button.p{background:var(--ac);border-color:var(--ac);color:#fff}
+  #resultado{font-size:1.9rem;font-weight:700;text-align:center;margin:4px 0 8px;min-height:2.4rem}
+  #inventario{text-align:center;font-size:1.15rem;margin-bottom:8px}
+  .fila{display:flex;gap:8px;flex-wrap:wrap}
+  #inventario .fila{justify-content:center;margin-top:6px}
+  .barra{display:flex;align-items:center;gap:8px;font-size:.85rem;margin:3px 0}
+  .barra span:first-child{width:38%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .barra .t{flex:1;height:8px;background:var(--bd);border-radius:6px;overflow:hidden}
+  .barra .r{height:100%;background:var(--ac);width:0}
+  .add{display:flex;gap:8px}
+  .add input{flex:1;font:inherit;padding:9px 10px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);min-width:0}
+  .clase{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--bd)}
+  .clase .info{flex:1;min-width:0;display:flex;flex-direction:column}
+  .clase .info b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sw{display:flex;flex-direction:column;align-items:center}
+  .stock{width:64px;font:inherit;padding:8px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);text-align:center}
+  .cap{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+  .cap.on{background:var(--ok);border-color:var(--ok);color:#fff}
+  #estado{font-size:.85rem;color:var(--warn);margin-top:6px}
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div>
+      <h1>Clasificador de productos</h1>
+      <div class="mut">Apunta la cámara a un producto y te dice cuál es y cuántas unidades hay.</div>
+    </div>
+    <button id="btnInstalar" class="p" hidden>Instalar app</button>
+  </div>
+
+  <div class="grid">
+    <section>
+      <div class="card">
+        <div class="cam">
+          <video id="video" playsinline muted autoplay></video>
+          <img id="foto" alt="Foto a analizar" hidden>
+          <button id="btnVolver" class="bt izq" hidden>Volver a la cámara</button>
+          <button id="btnCamara" class="bt der">Cambiar cámara</button>
+        </div>
+        <div class="fila" style="margin-top:8px">
+          <label class="btn" for="archivoFoto">Subir una foto</label>
+          <input type="file" id="archivoFoto" accept="image/*" hidden>
+        </div>
+        <div id="estado">Cargando modelo…</div>
+      </div>
+
+      <div class="card">
+        <div id="resultado">—</div>
+        <div id="inventario"></div>
+        <div id="barras"></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
+        <h2>1. Enseña tus productos</h2>
+        <div class="mut" style="margin-bottom:8px">
+          Escribe el nombre, define su <b>stock</b> y mantén presionado “Capturar” mientras mueves el producto
+          (distintos ángulos y distancias). Unas 30–50 capturas por producto. Agrega también una clase
+          <b>Fondo</b> (la cámara sin producto) para evitar falsos positivos. Si subes una foto, cada toque en
+          “Capturar” agrega esa foto como ejemplo.
+        </div>
+        <div class="add">
+          <input id="nombre" placeholder="Ej: Coca-Cola 2L" maxlength="40">
+          <button class="p" id="btnAgregar">Agregar</button>
+        </div>
+        <div id="lista"></div>
+      </div>
+
+      <div class="card">
+        <h2>Datos</h2>
+        <div class="mut" style="margin-bottom:8px">Se guardan solos en este dispositivo. Exporta para llevarlos a otro (celular ↔ computadora).</div>
+        <div class="fila">
+          <button id="btnExp">Exportar</button>
+          <button id="btnImp">Importar</button>
+          <button id="btnBorrar">Borrar todo</button>
+          <input type="file" id="archivo" accept=".json" hidden>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js"></script>
+<script>
+  const K = 5;               // vecinos que votan
+  const UMBRAL = 0.6;        // confianza mínima para dar una respuesta
+  const CAPTURA_MS = 120;    // una captura cada 120 ms mientras se mantiene presionado
+  const LLAVE = "productos-v1";
+
+  const $ = id => document.getElementById(id);
+  const video = $("video"), foto = $("foto");
+  let net = null, stream = null, facing = "environment", capturando = false, modoFoto = false;
+  const clases = new Map();  // nombre -> { vecs: [Float32Array], cnt, stock, inp }
+  let invKey = null;         // evita redibujar el inventario en cada ciclo
+  const esFondo = n => n.trim().toLowerCase() === "fondo";
+
+  function estado(t) { $("estado").textContent = t; }
+
+  /* ---------- PWA: service worker e instalación ---------- */
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js").catch(() => { /* sin HTTPS o bloqueado: la app funciona igual */ });
+  }
+  let promptInstalar = null;
+  window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); promptInstalar = e; $("btnInstalar").hidden = false; });
+  $("btnInstalar").onclick = async () => {
+    if (!promptInstalar) return;
+    promptInstalar.prompt();
+    await promptInstalar.userChoice;
+    promptInstalar = null; $("btnInstalar").hidden = true;
+  };
+  window.addEventListener("appinstalled", () => { $("btnInstalar").hidden = true; });
+
+  /* ---------- Cámara ---------- */
+  async function iniciarCamara() {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } }
+      });
+      video.srcObject = stream;
+      await video.play();
+    } catch (e) {
+      estado("No se pudo usar la cámara (" + e.message + "). Puedes subir fotos, o revisa los permisos y que la página esté en HTTPS.");
+    }
+  }
+  $("btnCamara").onclick = () => { facing = facing === "environment" ? "user" : "environment"; iniciarCamara(); };
+
+  /* ---------- Foto subida ---------- */
+  $("archivoFoto").onchange = e => {
+    const f = e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    const url = URL.createObjectURL(f);
+    foto.onload = () => {
+      modoFoto = true; foto.hidden = false; $("btnVolver").hidden = false; $("btnCamara").hidden = true;
+      const v = embedding();
+      if (v) mostrar(clasificar(v));
+    };
+    foto.onerror = () => estado("No se pudo leer esa imagen.");
+    if (foto.dataset.url) URL.revokeObjectURL(foto.dataset.url);
+    foto.dataset.url = url;
+    foto.src = url;
+  };
+  $("btnVolver").onclick = () => {
+    modoFoto = false; foto.hidden = true; $("btnVolver").hidden = true; $("btnCamara").hidden = false;
+  };
+
+  /* ---------- Modelo: MobileNet como extractor de características ---------- */
+  async function cargarModelo() {
+    try {
+      net = await mobilenet.load({ version: 2, alpha: 1.0 });
+      estado("");
+    } catch (e) {
+      estado("No se pudo cargar el modelo: " + e.message + ". La primera vez se necesita internet.");
+    }
+  }
+
+  // "Embedding" de lo que se ve (cámara o foto), normalizado a largo 1
+  function embedding() {
+    if (!net) return null;
+    const fuente = modoFoto ? foto : video;
+    if (!modoFoto && video.readyState < 2) return null;
+    const t = tf.tidy(() => net.infer(fuente, true));
+    const d = t.dataSync();
+    let n = 0;
+    for (let i = 0; i < d.length; i++) n += d[i] * d[i];
+    n = Math.sqrt(n) || 1;
+    const v = new Float32Array(d.length);
+    for (let i = 0; i < d.length; i++) v[i] = d[i] / n;
+    t.dispose();
+    return v;
+  }
+
+  /* ---------- Clasificador kNN (similitud coseno) ---------- */
+  function clasificar(v) {
+    const s = [];
+    for (const [nombre, c] of clases) {
+      for (const u of c.vecs) {
+        let d = 0;
+        for (let i = 0; i < v.length; i++) d += v[i] * u[i];
+        s.push([d, nombre]);
+      }
+    }
+    if (!s.length) return null;
+    s.sort((a, b) => b[0] - a[0]);
+    const top = s.slice(0, Math.min(K, s.length));
+    const votos = {};
+    let total = 0;
+    for (const [d, n] of top) { votos[n] = (votos[n] || 0) + d; total += d; }
+    return [...clases.keys()]
+      .map(n => ({ nombre: n, p: (votos[n] || 0) / total }))
+      .sort((a, b) => b.p - a.p);
+  }
+
+  /* ---------- Resultado e inventario ---------- */
+  function mostrarInventario(nombre) {
+    const box = $("inventario");
+    const c = nombre && !esFondo(nombre) ? clases.get(nombre) : null;
+    const key = c ? nombre + ":" + c.stock : "";
+    if (key === invKey) return;
+    invKey = key;
+    box.textContent = "";
+    if (!c) return;
+    const t = document.createElement("div");
+    t.style.fontWeight = "600";
+    t.textContent = "Inventario: " + c.stock + (c.stock === 1 ? " unidad" : " unidades");
+    if (c.stock === 0) t.style.color = "var(--warn)";
+    const f = document.createElement("div"); f.className = "fila";
+    const menos = document.createElement("button"); menos.textContent = "−1 (salida)";
+    const mas = document.createElement("button"); mas.textContent = "+1 (ingreso)";
+    menos.onclick = () => ajustar(nombre, -1);
+    mas.onclick = () => ajustar(nombre, 1);
+    f.append(menos, mas);
+    box.append(t, f);
+  }
+
+  function ajustar(nombre, d) {
+    const c = clases.get(nombre);
+    if (!c) return;
+    c.stock = Math.max(0, c.stock + d);
+    if (c.inp) c.inp.value = c.stock;
+    guardar();
+    mostrarInventario(nombre);
+  }
+
+  function mostrar(res) {
+    const r = $("resultado"), b = $("barras");
+    if (!res) { r.textContent = "—"; b.textContent = ""; mostrarInventario(null); return; }
+    const top = res[0];
+    const seguro = top.p >= UMBRAL;
+    r.textContent = seguro ? (esFondo(top.nombre) ? "Sin producto" : top.nombre) : "No estoy seguro";
+    r.style.color = seguro ? "var(--ok)" : "var(--warn)";
+    mostrarInventario(seguro ? top.nombre : null);
+    b.textContent = "";
+    for (const x of res.slice(0, 4)) {
+      const f = document.createElement("div"); f.className = "barra";
+      const a = document.createElement("span"); a.textContent = x.nombre;
+      const t = document.createElement("span"); t.className = "t";
+      const i = document.createElement("div"); i.className = "r"; i.style.width = Math.round(x.p * 100) + "%";
+      t.appendChild(i);
+      const p = document.createElement("span"); p.textContent = Math.round(x.p * 100) + "%";
+      f.append(a, t, p);
+      b.appendChild(f);
+    }
+  }
+
+  async function bucle() {
+    if (net && clases.size && !capturando && !modoFoto) {
+      const v = embedding();
+      if (v) mostrar(clasificar(v));
+    }
+    setTimeout(bucle, 250);
+  }
+
+  /* ---------- Captura de ejemplos ---------- */
+  function capturar(nombre) {
+    const v = embedding();
+    const c = clases.get(nombre);
+    if (!v || !c) return;
+    c.vecs.push(v);
+    c.cnt.textContent = c.vecs.length + " capturas";
+  }
+
+  function enlazarCaptura(btn, nombre) {
+    let t = null, activo = false;
+    const inicio = e => {
+      e.preventDefault();
+      if (activo) return;
+      activo = true; capturando = true; btn.classList.add("on");
+      capturar(nombre);
+      if (!modoFoto) t = setInterval(() => capturar(nombre), CAPTURA_MS);   // con una foto, un toque = un ejemplo
+    };
+    const fin = () => {
+      if (!activo) return;
+      activo = false; clearInterval(t); t = null;
+      capturando = false; btn.classList.remove("on");
+      guardar();
+    };
+    btn.addEventListener("pointerdown", inicio);
+    ["pointerup", "pointerleave", "pointercancel"].forEach(ev => btn.addEventListener(ev, fin));
+    btn.addEventListener("contextmenu", e => e.preventDefault());
+  }
+
+  function render() {
+    const cont = $("lista");
+    cont.textContent = "";
+    for (const [nombre, c] of clases) {
+      const row = document.createElement("div"); row.className = "clase";
+      const info = document.createElement("div"); info.className = "info";
+      const b = document.createElement("b"); b.textContent = nombre;
+      c.cnt = document.createElement("span"); c.cnt.className = "mut"; c.cnt.textContent = c.vecs.length + " capturas";
+      info.append(b, c.cnt);
+
+      const sw = document.createElement("div"); sw.className = "sw";
+      const lb = document.createElement("span"); lb.className = "mut"; lb.textContent = "Stock";
+      const inp = document.createElement("input");
+      inp.type = "number"; inp.min = "0"; inp.inputMode = "numeric"; inp.className = "stock"; inp.value = c.stock;
+      inp.onchange = () => { c.stock = Math.max(0, parseInt(inp.value, 10) || 0); inp.value = c.stock; guardar(); };
+      c.inp = inp;
+      sw.append(lb, inp);
+      if (esFondo(nombre)) sw.hidden = true;
+
+      const cap = document.createElement("button"); cap.className = "cap p"; cap.textContent = "Capturar";
+      enlazarCaptura(cap, nombre);
+      const del = document.createElement("button"); del.textContent = "✕"; del.title = "Eliminar";
+      del.onclick = () => {
+        if (confirm("¿Eliminar “" + nombre + "” y sus capturas?")) { clases.delete(nombre); guardar(); render(); mostrar(null); }
+      };
+      row.append(info, sw, cap, del);
+      cont.appendChild(row);
+    }
+  }
+
+  $("btnAgregar").onclick = () => {
+    const n = $("nombre").value.trim();
+    if (!n || clases.has(n)) return;
+    clases.set(n, { vecs: [], cnt: null, stock: 0, inp: null });
+    $("nombre").value = "";
+    render();
+  };
+  $("nombre").addEventListener("keydown", e => { if (e.key === "Enter") $("btnAgregar").click(); });
+
+  /* ---------- Guardar / cargar ---------- */
+  function aObjeto() {
+    const o = {};
+    for (const [n, c] of clases) o[n] = { stock: c.stock, vecs: c.vecs.map(v => Array.from(v, x => +x.toFixed(4))) };
+    return o;
+  }
+  function desdeObjeto(o) {
+    clases.clear();
+    for (const n in o) {
+      const d = o[n];
+      const vecs = Array.isArray(d) ? d : (d.vecs || []);   // formato antiguo: solo arreglo
+      const stock = Array.isArray(d) ? 0 : (parseInt(d.stock, 10) || 0);
+      clases.set(n, { vecs: vecs.map(a => Float32Array.from(a)), cnt: null, stock, inp: null });
+    }
+    invKey = null;
+    render();
+  }
+  function guardar() {
+    try { localStorage.setItem(LLAVE, JSON.stringify(aObjeto())); }
+    catch (e) { estado("No se pudo guardar en este dispositivo (¿poco espacio?). Usa Exportar."); }
+  }
+  function cargarGuardado() {
+    try {
+      const s = localStorage.getItem(LLAVE);
+      if (s) desdeObjeto(JSON.parse(s));
+    } catch (e) { /* sin datos guardados */ }
+  }
+
+  $("btnExp").onclick = () => {
+    const blob = new Blob([JSON.stringify(aObjeto())], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = "productos.json"; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  $("btnImp").onclick = () => $("archivo").click();
+  $("archivo").onchange = async e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    try { desdeObjeto(JSON.parse(await f.text())); guardar(); }
+    catch (err) { estado("Archivo inválido."); }
+    e.target.value = "";
+  };
+  $("btnBorrar").onclick = () => {
+    if (confirm("¿Borrar todos los productos y capturas?")) { clases.clear(); guardar(); render(); mostrar(null); }
+  };
+
+  /* ---------- Inicio ---------- */
+  cargarGuardado();
+  render();
+  iniciarCamara();
+  cargarModelo().then(bucle);
+</script>
+</body>
+</html>
